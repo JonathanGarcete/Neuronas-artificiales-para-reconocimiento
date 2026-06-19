@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Red Neuronal HD Procedural</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0;padding:0;background-color:#030308;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:white;overflow-x:hidden; }
+        .hero-section { position:relative;width:100vw;height:100vh; }
+        #canvas-container { position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;cursor:grab; }
+        #canvas-container:active { cursor:grabbing; }
+        .ui-layer { position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:2rem; }
+        header { max-width:450px;background:rgba(10,15,30,0.75);padding:1.5rem;border-radius:16px;backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.08); }
+        h1 { margin:0 0 0.5rem 0;font-size:1.8rem;background:linear-gradient(45deg,#00d2ff,#00ffaa);-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+        .search-box { background:rgba(10,15,30,0.9);padding:1.2rem;border-radius:14px;border:1px solid rgba(0,210,255,0.25);box-shadow:0 0 25px rgba(0,210,255,0.15);pointer-events:auto;max-width:400px;margin-top:1rem; }
+        .search-box label { display:block;font-size:0.85rem;color:#94a3b8;margin-bottom:0.5rem;font-weight:600;letter-spacing:0.5px; }
+        .input-group { display:flex;gap:0.5rem; }
+        .search-box input { flex:1;background:rgba(5,5,15,0.8);border:1px solid rgba(255,255,255,0.15);padding:0.65rem 1rem;border-radius:8px;color:white;font-size:0.95rem;outline:none;transition:all 0.3s ease; }
+        .search-box input:focus { border-color:#00d2ff;box-shadow:0 0 10px rgba(0,210,255,0.2); }
+        .scroll-hint { margin:12px 0 0 0;font-size:0.8rem;color:#00ffaa;font-weight:bold;text-transform:uppercase;letter-spacing:1px; }
+        .controls { display:flex;justify-content:center;gap:1rem;width:100%;pointer-events:auto;margin-bottom:1rem;flex-wrap:wrap; }
+        button { background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:white;padding:0.65rem 1.3rem;border-radius:30px;cursor:pointer;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-size:0.75rem;transition:all 0.3s ease; }
+        button:hover,button.active { background:#00d2ff;border-color:#00efff;color:#000;box-shadow:0 0 15px rgba(0,210,255,0.4);transform:translateY(-2px); }
+        .audio-control { pointer-events:auto;position:fixed;bottom:2rem;right:2rem;background:rgba(10,15,30,0.9);padding:1rem;border-radius:14px;border:1px solid rgba(0,210,255,0.25);box-shadow:0 0 25px rgba(0,210,255,0.15);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.7rem;z-index:15; }
+        .audio-control button { padding:0.5rem 1rem;font-size:0.7rem;margin:0; }
+        .volume-slider { width:120px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;display:block;margin:0 auto; }
+        .volume-slider::-webkit-slider-thumb { -webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:#00d2ff;cursor:pointer;box-shadow:0 0 8px rgba(0,210,255,0.5); }
+        .volume-slider::-moz-range-thumb { width:12px;height:12px;border-radius:50%;background:#00d2ff;cursor:pointer;border:none;box-shadow:0 0 8px rgba(0,210,255,0.5); }
+        .info-section { position:relative;z-index:20;background:#0b0f19;padding:4rem 2rem;border-top:1px solid rgba(255,255,255,0.08); }
+        .container { max-width:800px;margin:0 auto; }
+        h2 { color:#00d2ff;font-size:1.8rem;margin-top:0;border-bottom:2px solid rgba(255,255,255,0.05);padding-bottom:0.5rem; }
+        p.theory-text { color:#94a3b8;font-size:1.05rem;line-height:1.7;margin-bottom:2rem; }
+        ol { color:#94a3b8;font-size:1rem;line-height:1.8;margin-bottom:2rem;padding-left:1.5rem; }
+        strong { color:#00ffaa; }
+        footer { text-align:center;margin-top:4rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.05);color:#475569;font-size:0.85rem; }
+    </style>
+</head>
+<body>
+<div class="hero-section">
+    <div id="canvas-container"></div>
+    <div class="ui-layer">
+        <header>
+            <h1>Red Neuronal HD Procedural</h1>
+            <p>Arrastra con el <strong>mouse</strong> para orbitar y usa la <strong>rueda</strong> para hacer zoom.</p>
+            <div class="search-box">
+                <label for="input-word">PROCESADOR GRÁFICO DE ENTRADA:</label>
+                <div class="input-group">
+                    <input type="text" id="input-word" placeholder="auto · bici · gato · perro · cerebro · estrella · helicóptero · cuatro" autocomplete="off">
+                    <button id="btn-sintetizar">Procesar</button>
+                </div>
+            </div>
+            <p class="scroll-hint">↓ Desliza para ver marco teórico</p>
+        </header>
+        <div class="controls">
+            <button id="btn-auto-rotate">Giro Automático: OFF</button>
+            <button id="btn-reset">Reiniciar Estructura</button>
+            <button id="btn-color-cycle">Color: Auto</button>
+            <button id="btn-color-gradual">Cambio Gradual: OFF</button>
+        </div>
+    </div>
+</div>
+
+<div class="audio-control">
+    <button id="btn-audio-toggle">⚡ Rayos: OFF</button>
+    <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="50">
+</div>
+
+<audio id="neuro-audio" crossorigin="anonymous">
+    <source src="https://raw.githubusercontent.com/JonathanGarcete/sonidos-de-neuronas/main/Electricity%20Sound%20Effect%20xd%20(Thx%20for%201M%20Views!).mp3" type="audio/mpeg">
+</audio>
+
+<div class="info-section">
+    <div class="container">
+        <section>
+            <h2>¿Qué es una Neurona Artificial?</h2>
+            <p class="theory-text">Una <strong>neurona artificial</strong> es un modelo matemático computacional diseñado para emular la lógica operativa de las neuronas del cerebro biológico. Actúa como la unidad fundamental de procesamiento dentro del campo del Aprendizaje Profundo (Deep Learning) e Inteligencia Artificial.</p>
+        </section>
+        <section>
+            <h2>Arquitectura del Procesamiento Matemático</h2>
+            <p class="theory-text">El flujo de datos a través de cada uno de los nodos tridimensionales que observas arriba sigue un estricto orden algebraico:</p>
+            <ol>
+                <li><strong>Inputs y Pesos Sinápticos (W):</strong> La neurona recibe variables numéricas de entrada. Cada canal posee un "peso" específico que amplifica o atenúa el valor según su relevancia analítica.</li>
+                <li><strong>Combinación Lineal (Suma Ponderada):</strong> Se ejecuta el producto escalar de los vectores de entrada por sus pesos y se le añade un sesgo estructural denominado <strong>Bias</strong>.</li>
+                <li><strong>Función de Activación:</strong> El escalar resultante se mapea a través de una función no lineal (como ReLU o Sigmoide), determinando el nivel de disparo energético que se transmitirá hacia la siguiente capa de la red.</li>
+            </ol>
+        </section>
+        <footer><p>Visualizador Holográfico de Redes Complejas en Tiempo Real</p></footer>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ─── SETUP ───────────────────────────────────────────────────────────────────
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x030308, 0.014);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(0, 5, 50);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+container.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.enablePan = false;
+controls.autoRotate = false;
+controls.autoRotateSpeed = 0.8;
+
+const group = new THREE.Group();
+scene.add(group);
+
+// ─── AUDIO CONTROL ───────────────────────────────────────────────────────────
+const audioElement = document.getElementById('neuro-audio');
+const audioBtn = document.getElementById('btn-audio-toggle');
+const volumeSlider = document.getElementById('volume-slider');
+let audioPlaying = false;
+let showImpulses = false;
+
+audioBtn.addEventListener('click', () => {
+    if (audioPlaying) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+        audioPlaying = false;
+        audioBtn.textContent = '⚡ Rayos: OFF';
+    } else {
+        audioElement.play().catch(err => console.log('Audio play error:', err));
+        audioPlaying = true;
+        showImpulses = true;
+        audioBtn.textContent = '⚡ Rayos: ON';
+    }
+});
+
+audioElement.addEventListener('ended', () => {
+    audioPlaying = false;
+    showImpulses = false;
+    audioBtn.textContent = '⚡ Rayos: OFF';
+});
+
+volumeSlider.addEventListener('input', (e) => {
+    audioElement.volume = e.target.value / 100;
+});
+audioElement.volume = 0.5;
+
+// ─── PARTICLES ───────────────────────────────────────────────────────────────
+const N = 2500;
+const MAX_LINES = 6000;
+let currentShape = 'random';
+let glowEnergy = 0;
+
+function createGlowTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(64,64,0,64,64,64);
+    g.addColorStop(0,   'rgba(255,255,255,1)');
+    g.addColorStop(0.08,'rgba(220,245,255,1)');
+    g.addColorStop(0.25,'rgba(0,210,255,0.7)');
+    g.addColorStop(0.6, 'rgba(0,100,200,0.2)');
+    g.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,128,128);
+    return new THREE.CanvasTexture(c);
+}
+
+const dynPos = new Float32Array(N * 3);
+const pData = [];
+
+for (let i = 0; i < N; i++) {
+    const x = (Math.random()-.5)*50, y = (Math.random()-.5)*50, z = (Math.random()-.5)*50;
+    dynPos[i*3]=x; dynPos[i*3+1]=y; dynPos[i*3+2]=z;
+    pData.push({
+        vel: new THREE.Vector3((Math.random()-.5)*0.06,(Math.random()-.5)*0.06,(Math.random()-.5)*0.06),
+        target: new THREE.Vector3(x,y,z),
+        rnd: new THREE.Vector3(x,y,z)
+    });
+}
+
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(dynPos, 3));
+
+const pMat = new THREE.PointsMaterial({
+    color: 0x00ffff, size: 2.2, transparent: true,
+    blending: THREE.AdditiveBlending, map: createGlowTexture(), depthWrite: false
+});
+group.add(new THREE.Points(pGeo, pMat));
+
+const lGeo = new THREE.BufferGeometry();
+const lPos = new Float32Array(MAX_LINES * 2 * 3);
+lGeo.setAttribute('position', new THREE.BufferAttribute(lPos, 3));
+const lMat = new THREE.LineBasicMaterial({
+    color: 0x0055ff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending
+});
+group.add(new THREE.LineSegments(lGeo, lMat));
+
+const IMP = 200;
+const iGeo = new THREE.BufferGeometry();
+const iPos = new Float32Array(IMP * 3);
+iGeo.setAttribute('position', new THREE.BufferAttribute(iPos, 3));
+const iMat = new THREE.PointsMaterial({
+    color: 0xffffff, size: 4.5, transparent: true,
+    blending: THREE.AdditiveBlending, map: createGlowTexture(), depthWrite: false
+});
+group.add(new THREE.Points(iGeo, iMat));
+
+const impData = Array.from({length: IMP}, () => ({sN:0, eN:0, prog:1, spd:0.03}));
+const connPool = new Int32Array(MAX_LINES * 2);
+let connCount = 0;
+
+// ─── SHAPE GENERATOR ─────────────────────────────────────────────────────────
+function shape(idx, total) {
+    let x=0, y=0, z=0;
+    const pct = idx / total;
+    const PI  = Math.PI;
+
+    if (currentShape === 'cerebro') {
+        const lado = (idx % 2 === 0) ? 1 : -1;
+
+        if (pct < 0.72) {
+            const u = (idx / total) * PI * 18;
+            const hp = pct / 0.72;
+            const v = Math.acos(2 * hp - 1);
+
+            let bx = 9.0  * Math.sin(v) * Math.cos(u);
+            let by = 8.0  * Math.cos(v);
+            let bz = 12.5 * Math.sin(v) * Math.sin(u);
+
+            if (bz > 5)  { bz += 2.5; by += 0.3; }
+            if (bz < -6) { bz -= 2.0; by += 0.6; }
+            if (by < -3.0 && Math.abs(bz) < 7) { by -= 2.0; bx *= 1.12; if (bz > 2) bz += 1.5; }
+            if (by > 5.5 && Math.abs(bz) < 5) by += 1.0;
+
+            const surcos =
+                Math.sin(bz * 1.4 + 0.8) * Math.cos(by * 1.9) * 1.8 +
+                Math.sin(by * 2.2 + bx * 1.1) * 1.2 +
+                Math.cos(bz * 2.0) * Math.sin(by * 2.6) * 1.0 +
+                Math.sin(bx * 1.8 + bz * 1.3) * Math.cos(by * 1.5) * 0.8;
+
+            bx += surcos * 0.22; by += surcos * 0.20; bz += surcos * 0.30;
+            x = lado * (Math.abs(bx) + 1.2); y = by; z = bz;
+
+            if (y < -5.5) y = -5.5 + (y + 5.5) * 0.5;
+            if (y < -2.0 && y > -5.5 && z > 3.0 && z < 10.0) { y -= 2.2; x *= 0.92; }
+        } else if (pct < 0.88) {
+            const cp = (pct - 0.72) / 0.16;
+            const lado2 = (idx % 2 === 0) ? 1 : -1;
+            const u2 = cp * PI * 2 * 16;
+            const v2 = Math.acos(2 * Math.random() - 1) * 0.85;
+
+            const bx = 5.2 * Math.sin(v2) * Math.cos(u2);
+            const by = 3.2 * Math.cos(v2);
+            const bz = 4.5 * Math.sin(v2) * Math.sin(u2);
+
+            const folia = Math.sin(u2 * 4) * 0.7 + Math.sin(v2 * 10) * 0.45;
+            x = lado2 * (Math.abs(bx) + 0.5) + folia * 0.2;
+            y = -9.0 + by + folia * 0.15;
+            z = -8.0 + bz;
+            if (Math.abs(x) < 1.0) { y += 1.0; x *= 0.4; }
+        } else {
+            const tp = (pct - 0.88) / 0.12;
+            const seg = Math.floor(tp * 3);
+            const sp  = (tp * 3) % 1;
+            const radios = [1.6, 2.4, 1.5];
+            const yBases = [-1.0, -4.0, -7.0];
+            const r  = radios[Math.min(seg, 2)];
+            const yB = yBases[Math.min(seg, 2)];
+            const a  = Math.random() * PI * 2;
+            const rr = Math.sqrt(Math.random()) * r;
+            x = Math.cos(a) * rr;
+            y = yB - sp * 3.0;
+            z = -4.5 + Math.sin(a) * rr * 0.7;
+            if (seg === 1) { x *= 1.4; }
+        }
+
+    } else if (currentShape === 'auto') {
+        if (pct < 0.28) {
+            const w = Math.floor(pct / 0.07);
+            const wp = (pct % 0.07) / 0.07;
+            const cx = [8.5, 8.5, -8.5, -8.5][w];
+            const cz = [5.8, -5.8, 5.8, -5.8][w];
+            const cy = -4.2;
+            const a  = wp * PI * 2 * 4;
+            const rOuter = 3.2, rInner = 1.6;
+            const rTire = wp < 0.6 ? rOuter : rInner;
+            const thick = (wp < 0.6 ? 1.4 : 0.5) * (Math.random()-.5);
+            x = cx + Math.cos(a) * rTire;
+            y = cy + Math.sin(a) * rTire;
+            z = cz + thick;
+        } else if (pct < 0.30) {
+            const isRear = pct < 0.29;
+            x = isRear ? 8.5 : -8.5;
+            y = -4.2;
+            z = -5.8 + (pct % 0.01) / 0.01 * 11.6;
+        } else if (pct < 0.72) {
+            const cp = (pct - 0.30) / 0.42;
+            x = -14 + cp * 28;
+            if      (x < -10) y = -1.8;
+            else if (x < -7)  y = -1.8 + ((x+10)/3)*3.5;
+            else if (x < -1)  y = 3.2 + Math.sin((x+7)/6*PI)*0.8;
+            else if (x <  3)  y = 3.2 - ((x+1)/4)*0.4;
+            else if (x <  8)  y = 2.8 - ((x-3)/5)*4.0;
+            else              y = -1.2;
+
+            const halfW = 5.5 * (0.85 + Math.sin(PI*(x+14)/28)*0.15);
+            z = (Math.random()-.5) * 2 * halfW;
+            if (Math.random() < 0.08) y = -4.0;
+        } else if (pct < 0.82) {
+            const fp = (pct - 0.72) / 0.10;
+            const side = (idx % 2 === 0) ? 5.9 : -5.9;
+            x = -14 + fp * 28;
+            y = -4.2 + Math.random() * 4.0;
+            z = side + (Math.random()-.5) * 0.4;
+        } else if (pct < 0.90) {
+            const gp = (pct - 0.82) / 0.08;
+            const isRearGlass = gp < 0.5;
+            const gp2 = isRearGlass ? gp/0.5 : (gp-.5)/.5;
+            x = isRearGlass ? (-7 + gp2*3)  : (3 + gp2*5);
+            y = isRearGlass ? (-1.8 + gp2*5): (3.2 - gp2*4);
+            z = (Math.random()-.5) * 10;
+        } else {
+            const dp = (pct - 0.90) / 0.10;
+            if (dp < 0.3) { x = -14+dp*3; y = 1.0; z = (idx%2===0)?6.5:-6.5; }
+            else if (dp < 0.6) { x = -12+(dp-.3)*5; y = -0.5; z = (Math.random()-.5)*2; }
+            else { x = 8.5+(dp-.6)*4; y = 3.5; z = (Math.random()-.5)*9; }
+        }
+
+    } else if (currentShape === 'bicicleta') {
+        if (pct < 0.38) {
+            const isRear = pct < 0.19;
+            const cx = isRear ? -9.5 : 9.5;
+            const cy = -4.5;
+            const wp = (pct % 0.19) / 0.19;
+            if (wp < 0.75) {
+                const a = wp / 0.75 * PI * 2 * 5;
+                const r = 4.8 + (idx%3 - 1) * 0.15;
+                x = cx + Math.cos(a) * r;
+                y = cy + Math.sin(a) * r;
+                z = ((idx%5) - 2) * 0.12;
+            } else {
+                const sp = (wp - 0.75) / 0.25;
+                const a = sp * PI * 2 * 16;
+                const r = sp * 4.6;
+                x = cx + Math.cos(a) * r;
+                y = cy + Math.sin(a) * r;
+                z = (Math.random()-.5) * 0.1;
+            }
+        } else if (pct < 0.72) {
+            const fp = (pct - 0.38) / 0.34;
+            const nodes = [
+                new THREE.Vector3(-9.5,-4.5,0),
+                new THREE.Vector3(-2.0,-4.5,0),
+                new THREE.Vector3(-4.5, 3.5,0),
+                new THREE.Vector3( 4.5, 5.0,0),
+                new THREE.Vector3( 9.5,-4.5,0),
+                new THREE.Vector3(-4.5, 6.0,0),
+            ];
+            const segs = [
+                [0,2],[0,1],[1,2],[2,3],[1,3],[3,4],
+                [2,5]
+            ];
+            const segIdx = Math.floor(fp * segs.length);
+            const segPct = (fp * segs.length) % 1;
+            const s = segs[Math.min(segIdx, segs.length-1)];
+            const vA = nodes[s[0]], vB = nodes[s[1]];
+            x = vA.x + (vB.x-vA.x)*segPct;
+            y = vA.y + (vB.y-nodes[s[0]].y)*segPct;
+            z = (Math.random()-.5) * 0.35;
+        } else if (pct < 0.83) {
+            const mp = (pct - 0.72) / 0.11;
+            x = 4.5;
+            y = 5.0 + mp * 1.8;
+            z = -4.5 + mp * 9.0;
+        } else if (pct < 0.91) {
+            const sp = (pct - 0.83) / 0.08;
+            x = -6.0 + sp * 3.0;
+            y = 6.2 + Math.sin(sp * PI) * 0.4;
+            z = (Math.random()-.5) * 1.2;
+        } else {
+            const cp = (pct - 0.91) / 0.09;
+            x = -9.5 + cp * 7.5;
+            y = -4.5 + Math.sin(cp * PI) * 0.4;
+            z = (Math.random()-.5) * 0.2;
+        }
+
+    } else if (currentShape === 'gato') {
+        if (pct < 0.50) {
+            const hPct = pct / 0.50;
+            y = -11 + hPct * 17;
+            const rCuerpo = 5.5 * Math.pow(1.1 - hPct, 0.7);
+            const angle = Math.random() * PI * 2;
+            x = Math.cos(angle) * rCuerpo - (Math.sin(hPct * PI) * 1.2);
+            z = Math.sin(angle) * rCuerpo;
+        } else if (pct < 0.75) {
+            const u = Math.random() * PI; const v = Math.random() * PI * 2;
+            x = -1.2 + 3.3 * Math.sin(u) * Math.cos(v);
+            y = 8.5  + 3.0 * Math.sin(u) * Math.sin(v);
+            z = 3.0  * Math.cos(u);
+        } else if (pct < 0.88) {
+            const orejaPct = (pct - 0.75) / 0.13;
+            const esIzquierda = idx % 2 === 0 ? 1 : -1;
+            x = -1.2 + esIzquierda * (1.2 + orejaPct * 2.0);
+            y = 11.2 + (1.0 - orejaPct) * 3.0;
+            z = Math.random() * 0.8;
+        } else {
+            const tailPct = (pct - 0.88) / 0.12;
+            x = -4.5 - tailPct * 8.5;
+            y = -11.0 + Math.sin(tailPct * PI * 1.5) * 3.0;
+            z = -1.0  + Math.cos(tailPct * PI) * 2.0;
+        }
+
+    } else if (currentShape === 'helicoptero') {
+        if (pct < 0.40) {
+            const theta = Math.random() * PI * 2; const phi = Math.acos((Math.random() * 2) - 1);
+            x = 3.0 + 7.5 * Math.sin(phi) * Math.cos(theta);
+            y = 1.0 + 4.8 * Math.sin(phi) * Math.sin(theta);
+            z = 4.2 * Math.cos(phi);
+        } else if (pct < 0.65) {
+            const cp = (pct - 0.40) / 0.25;
+            x = -4.5 - cp * 14.0;
+            y = 1.5 + cp * 2.5;
+            const rCola = 1.6 * (1.0 - cp * 0.75);
+            const angle = Math.random() * PI * 2;
+            y += Math.sin(angle) * rCola; z += Math.cos(angle) * rCola;
+        } else if (pct < 0.85) {
+            const rp = (pct - 0.65) / 0.20;
+            const aspa = Math.floor(rp * 4); const lenPct = (rp * 4) % 1;
+            const angleBase = aspa * (PI / 2);
+            const radioLargo = 2.0 + lenPct * 15.0;
+            x = 3.0 + Math.cos(angleBase) * radioLargo;
+            y = 6.2;
+            z = Math.sin(angleBase) * radioLargo;
+        } else {
+            const pp = (pct - 0.85) / 0.15;
+            const ladoDerecho = idx % 2 === 0;
+            z = ladoDerecho ? 4.5 : -4.5;
+            x = -3.0 + pp * 14.0;
+            y = -4.8;
+        }
+
+    } else if (currentShape === 'perro') {
+        if (pct < 0.30) {
+            const tp = pct / 0.30;
+            x = -9 + tp * 18;
+            const rb = 4.5 * (0.65 + Math.sin(tp*PI)*0.35);
+            const a  = (idx/N) * PI * 2 * 9;
+            y = Math.cos(a) * rb;
+            z = Math.sin(a) * rb * 0.85;
+        } else if (pct < 0.55) {
+            const hp = (pct-0.30)/0.25;
+            const cx = 9.0 + hp*5.5, cy = 3.5 + hp*4.0;
+            const u  = Math.random()*PI, v = Math.random()*PI*2;
+            const rh = 4.0*(1-hp*0.2);
+            x = cx + rh*Math.sin(u)*Math.cos(v);
+            y = cy + rh*Math.sin(u)*Math.sin(v)*0.85;
+            z =      rh*Math.cos(u)*0.9;
+            if (hp > 0.5 && z > 1.0 && Math.abs(y-cy) < 1.5) {
+                x += 3.0*(hp-0.5)*2; z += 1.0;
+            }
+        } else if (pct < 0.60) {
+            const ep = (pct-0.55)/0.05;
+            const side = (idx%2===0)?1:-1;
+            x = 13.5 + ep*(-1.0);
+            y = 7.5  - ep*5.0;
+            z = side * (3.5 + ep*1.5);
+        } else if (pct < 0.82) {
+            const leg  = Math.floor((pct-0.60)/0.055);
+            const lp   = ((pct-0.60) % 0.055) / 0.055;
+            const lX   = [ 7.0,  6.0, -7.0, -8.0][leg%4];
+            const lZ   = [ 3.5, -3.5,  3.2, -3.2][leg%4];
+            const bend = Math.sin(lp*PI)*2.0;
+            x = lX + (Math.random()-.5)*0.6;
+            y = 0.0 - lp*10.0 + (lp<0.5?bend:0);
+            z = lZ + (Math.random()-.5)*0.5;
+        } else if (pct < 0.92) {
+            const tp2 = (pct-0.82)/0.10;
+            x = -9.0 - tp2*4.0;
+            y =  1.0 + Math.sin(tp2*PI*1.8)*6.0;
+            z = Math.cos(tp2*PI*1.5)*1.5;
+        } else {
+            const fp = (pct-0.92)/0.08;
+            x = -9 + fp*18*(Math.random());
+            const rb2 = 5.5;
+            const a2  = Math.random()*PI*2;
+            y = Math.cos(a2)*rb2*(0.5+Math.random()*0.5);
+            z = Math.sin(a2)*rb2*(0.5+Math.random()*0.5);
+        }
+
+    } else if (currentShape === 'estrella') {
+        const a  = pct * PI * 2 * 7;
+        const harm = Math.abs(Math.sin(2.5 * a));
+        const r  = 17.0 / (1.0 + 2.0 * harm);
+        x = Math.cos(a) * r;
+        y = Math.sin(a) * r;
+        z = (Math.random()-.5) * 6.0 * (r/17.0);
+        if (pct > 0.5) {
+            const a2 = pct * PI * 2 * 4 + PI/5;
+            const harm2 = Math.abs(Math.sin(2.5 * a2));
+            const r2 = 9.0 / (1.0 + 2.0 * harm2);
+            x = Math.cos(a2) * r2;
+            y = Math.sin(a2) * r2;
+            z = (Math.random()-.5)*3.0*(r2/9.0);
+        }
+
+    } else if (currentShape === 'cuatro') {
+        const jitter = 0.7;
+        if (pct < 0.40) {
+            const t = pct / 0.40;
+            x = 5.5 + (Math.random()-.5)*jitter;
+            y = -13 + t * 27;
+            z = (Math.random()-.5)*2.0;
+        } else if (pct < 0.65) {
+            const t = (pct-0.40)/0.25;
+            x = -8.0 + t * 14.5;
+            y = 2.0 + (Math.random()-.5)*jitter;
+            z = (Math.random()-.5)*2.0;
+        } else {
+            const t = (pct-0.65)/0.35;
+            x = -8.0 + t * 13.5;
+            y = 14.0 - t * 12.0;
+            z = (Math.random()-.5)*2.0;
+        }
+
+    } else {
+        const r = pData[idx].rnd;
+        return new THREE.Vector3(r.x, r.y, r.z);
+    }
+
+    return new THREE.Vector3(x, y, z);
+}
+
+const colorPalette = [
+    { name: 'Rojo', p: 0xff2222, l: 0x990000 },
+    { name: 'Verde', p: 0x22ff66, l: 0x008833 },
+    { name: 'Celeste', p: 0x33d6ff, l: 0x0077aa },
+    { name: 'Naranja', p: 0xff9922, l: 0xaa5500 },
+];
+let colorIndex = -1;
+let manualColor = null;
+let gradualMode = false;
+let gradualHue = 0;
+
+const btnColorCycle = document.getElementById('btn-color-cycle');
+const btnColorGradual = document.getElementById('btn-color-gradual');
+
+btnColorCycle.addEventListener('click', () => {
+    gradualMode = false;
+    btnColorGradual.classList.remove('active');
+    btnColorGradual.textContent = 'Cambio Gradual: OFF';
+
+    colorIndex = (colorIndex + 1) % (colorPalette.length + 1);
+    if (colorIndex === colorPalette.length) {
+        colorIndex = -1;
+        manualColor = null;
+        btnColorCycle.textContent = 'Color: Auto';
+    } else {
+        manualColor = colorPalette[colorIndex];
+        btnColorCycle.textContent = `Color: ${manualColor.name}`;
+    }
+    updateMorph();
+});
+
+btnColorGradual.addEventListener('click', () => {
+    gradualMode = !gradualMode;
+    btnColorGradual.classList.toggle('active');
+    btnColorGradual.textContent = `Cambio Gradual: ${gradualMode ? 'ON' : 'OFF'}`;
+    if (gradualMode) {
+        manualColor = null;
+        colorIndex = -1;
+        btnColorCycle.textContent = 'Color: Auto';
+    }
+});
+
+function updateMorph() {
+    glowEnergy = 1.0;
+    for (let i = 0; i < N; i++) pData[i].target.copy(shape(i, N));
+
+    if (gradualMode) return;
+
+    if (manualColor) {
+        pMat.color.setHex(manualColor.p);
+        lMat.color.setHex(manualColor.l);
+        return;
+    }
+
+    const colMap = {
+        estrella: [0xffea00, 0xff5500],
+        cerebro: [0xff77aa, 0xaa2266],
+        cuatro: [0x00ffaa, 0x00aa66],
+        auto: [0xff0055, 0x990022],
+        bicicleta: [0x00ffcc, 0x0066aa],
+        helicoptero: [0xbd55ff, 0x5500aa],
+        perro: [0xff9933, 0xaa4400],
+        gato: [0x55ffdd, 0x007755],
+    };
+    const [pc, lc] = colMap[currentShape] || [0x00ffff, 0x0055ff];
+    pMat.color.setHex(pc);
+    lMat.color.setHex(lc);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+
+    if (gradualMode) {
+        gradualHue = (gradualHue + 0.0015) % 1;
+        pMat.color.setHSL(gradualHue, 1.0, 0.6);
+        lMat.color.setHSL(gradualHue, 1.0, 0.35);
+    }
+
+    if (glowEnergy > 0.005) glowEnergy *= 0.94; else glowEnergy = 0;
+
+    const pos = pGeo.attributes.position.array;
+    let li = 0;
+    connCount = 0;
+
+    if (currentShape !== 'random') {
+        pMat.size = 1.8 + glowEnergy * 6.0;
+        lMat.opacity = 0.55 + glowEnergy * 0.45;
+        for (let i = 0; i < N; i++) {
+            const t = pData[i].target;
+            pos[i*3]   += (t.x - pos[i*3])   * 0.07;
+            pos[i*3+1] += (t.y - pos[i*3+1]) * 0.07;
+            pos[i*3+2] += (t.z - pos[i*3+2]) * 0.07;
+        }
+    } else {
+        pMat.size = 2.2; lMat.opacity = 0.35;
+        for (let i = 0; i < N; i++) {
+            const d = pData[i];
+            d.vel.x += (Math.random()-.5)*0.003;
+            d.vel.y += (Math.random()-.5)*0.003;
+            d.vel.z += (Math.random()-.5)*0.003;
+            d.vel.clampLength(0, 0.025);
+            d.rnd.add(d.vel);
+            if (d.rnd.length() > 24) d.vel.negate();
+            pos[i*3]   += (d.rnd.x - pos[i*3])   * 0.045;
+            pos[i*3+1] += (d.rnd.y - pos[i*3+1]) * 0.045;
+            pos[i*3+2] += (d.rnd.z - pos[i*3+2]) * 0.045;
+        }
+    }
+    pGeo.attributes.position.needsUpdate = true;
+
+    const minD = currentShape !== 'random' ? 5.5 : 7.0;
+    for (let i = 0; i < N; i += 2) {
+        for (let j = i+1; j < N; j++) {
+            if (li >= MAX_LINES) break;
+            const dx=pos[i*3]-pos[j*3], dy=pos[i*3+1]-pos[j*3+1], dz=pos[i*3+2]-pos[j*3+2];
+            if (dx*dx+dy*dy+dz*dz < minD*minD) {
+                const k = li*6;
+                lPos[k]=pos[i*3]; lPos[k+1]=pos[i*3+1]; lPos[k+2]=pos[i*3+2];
+                lPos[k+3]=pos[j*3]; lPos[k+4]=pos[j*3+1]; lPos[k+5]=pos[j*3+2];
+                connPool[connCount*2]=i; connPool[connCount*2+1]=j;
+                connCount++; li++;
+            }
+        }
+    }
+    lGeo.attributes.position.needsUpdate = true;
+
+    const ip = iGeo.attributes.position.array;
+    if (showImpulses) {
+        for (let i = 0; i < IMP; i++) {
+            const imp = impData[i];
+            if (imp.prog >= 1.0 && connCount > 0) {
+                const r = Math.floor(Math.random()*connCount);
+                imp.sN = connPool[r*2]; imp.eN = connPool[r*2+1];
+                imp.prog = 0; imp.spd = 0.018+Math.random()*0.04;
+            }
+            if (imp.prog < 1.0) {
+                imp.prog += imp.spd;
+                const s = imp.sN*3, e = imp.eN*3;
+                ip[i*3]   = pos[s]   + (pos[e]   - pos[s])   * imp.prog;
+                ip[i*3+1] = pos[s+1] + (pos[e+1] - pos[s+1]) * imp.prog;
+                ip[i*3+2] = pos[s+2] + (pos[e+2] - pos[s+2]) * imp.prog;
+            }
+        }
+    } else {
+        for (let i = 0; i < IMP; i++) {
+            ip[i*3] = 0;
+            ip[i*3+1] = 0;
+            ip[i*3+2] = 0;
+            impData[i].prog = 1;
+        }
+    }
+    iGeo.attributes.position.needsUpdate = true;
+    renderer.render(scene, camera);
+}
+
+const inputEl = document.getElementById('input-word');
+
+function procesar() {
+    const w = inputEl.value.toLowerCase().trim();
+
+    if (!w) { currentShape = 'random'; updateMorph(); return; }
+
+    if      (w==='perro'||w==='can') currentShape='perro';
+    else if (w==='gato'||w==='felino') currentShape='gato';
+    else if (w==='auto'||w==='coche'||w==='carro'||w==='automovil'||w==='automóvil') currentShape='auto';
+    else if (w==='bicicleta'||w==='bici') currentShape='bicicleta';
+    else if (w==='helicoptero'||w==='helicóptero'||w==='heli') currentShape='helicoptero';
+    else if (w==='estrella') currentShape='estrella';
+    else if (w==='cerebro') currentShape='cerebro';
+    else if (w==='cuatro'||w==='4') currentShape='cuatro';
+    else currentShape='random';
+
+    updateMorph();
+}
+
+inputEl.addEventListener('input', () => {
+    if (inputEl.value.trim() === '') { currentShape = 'random'; updateMorph(); }
+});
+
+document.getElementById('btn-sintetizar').addEventListener('click', procesar);
+inputEl.addEventListener('keypress', e => { if(e.key==='Enter') procesar(); });
+
+document.getElementById('btn-auto-rotate').addEventListener('click', e => {
+    controls.autoRotate = !controls.autoRotate;
+    e.target.classList.toggle('active');
+    e.target.innerText = `Giro Automático: ${controls.autoRotate?'ON':'OFF'}`;
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+    camera.position.set(0,5,50);
+    controls.target.set(0,0,0);
+    inputEl.value = '';
+    currentShape = 'random';
+    gradualMode = false;
+    manualColor = null;
+    colorIndex = -1;
+    btnColorCycle.textContent = 'Color: Auto';
+    btnColorGradual.classList.remove('active');
+    btnColorGradual.textContent = 'Cambio Gradual: OFF';
+    updateMorph();
+    audioElement.pause();
+    audioElement.currentTime = 0;
+    audioPlaying = false;
+    showImpulses = false;
+    audioBtn.textContent = '⚡ Rayos: OFF';
+});
+
+window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    controls.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>
