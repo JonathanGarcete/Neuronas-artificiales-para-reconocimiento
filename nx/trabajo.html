@@ -10,6 +10,7 @@
     --blue: #3f6bff;
     --blue-deep: #28419e;
     --green: #3dffa0;
+    --red: #ff3b5c;
     --panel-bg: rgba(8, 12, 24, 0.55);
   }
 
@@ -195,17 +196,19 @@
   let lastTime = null;
 
   const PALETTE = {
+    red: '#ff3b5c',
     cyan: '#2de2ff',
     blue: '#3f6bff',
     blueDeep: '#28419e',
     green: '#3dffa0'
   };
-  // Distribución de colores: mayoría azul, acentos cian y algunos verdes,
-  // igual que en la imagen de referencia.
-  const COLOR_WEIGHTS = ['blue', 'blueDeep', 'blue', 'blueDeep', 'cyan', 'cyan', 'green'];
 
-  function pickColor(){
-    return PALETTE[COLOR_WEIGHTS[Math.floor(Math.random() * COLOR_WEIGHTS.length)]];
+  const COLUMN_COUNTS = [7, 9, 11, 12, 11, 9, 7];
+
+  function pickColor(colIndex){
+    if(colIndex < 2) return PALETTE.red;
+    if(colIndex < 5) return PALETTE.blue;
+    return PALETTE.green;
   }
 
   function hexToRgb(hex){
@@ -241,10 +244,6 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  // Forma de "lente": columnas con distinta cantidad de nodos, más anchas
-  // en el centro, igual que en la imagen de referencia.
-  const COLUMN_COUNTS = [7, 9, 11, 12, 11, 9, 7];
-
   function buildNetwork(){
     nodes = [];
     edges = [];
@@ -260,7 +259,7 @@
 
     for(let c = 0; c < numCols; c++){
       const count = COLUMN_COUNTS[c];
-      const x = numCols === 1 ? W/2 : marginX + usableWidth * (c / (numCols - 1));
+      const x = numCols === 1 ? W / 2 : marginX + usableWidth * (c / (numCols - 1));
       const totalHeight = (count - 1) * spacingY;
       const startY = centerY - totalHeight / 2;
       const colNodes = [];
@@ -269,7 +268,7 @@
         const node = {
           x: x,
           y: startY + i * spacingY,
-          color: pickColor(),
+          color: pickColor(c),
           activation: 0
         };
         nodes.push(node);
@@ -284,10 +283,11 @@
       colA.forEach(a => {
         colB.forEach(b => {
           const alpha = 0.12 + Math.random() * 0.22;
-          const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-          gradient.addColorStop(0, hexToRgba(a.color, alpha));
-          gradient.addColorStop(1, hexToRgba(b.color, alpha));
-          edges.push({ a, b, gradient });
+          edges.push({
+            a,
+            b,
+            gradient: hexToRgba(a.color, alpha)
+          });
         });
       });
     }
@@ -307,7 +307,6 @@
     }
   }
 
-  // Suaviza el valor entre 0 y 1 (sin cambios brúscos al inicio/fin)
   function smooth01(t){
     const c = Math.max(0, Math.min(1, t));
     return c * c * (3 - 2 * c);
@@ -323,10 +322,10 @@
 
     ctx.clearRect(0, 0, W, H);
 
-    // --- líneas (conexiones) ---
     const breathing = reducedMotion ? 0.75 : (speakingBoost ? 0.95 : 0.7) + 0.18 * Math.sin(timestamp / 1400);
     ctx.globalAlpha = Math.max(0.35, Math.min(1, breathing));
     ctx.lineWidth = 0.7;
+
     edges.forEach(e => {
       ctx.strokeStyle = e.gradient;
       ctx.beginPath();
@@ -334,9 +333,9 @@
       ctx.lineTo(e.b.x, e.b.y);
       ctx.stroke();
     });
+
     ctx.globalAlpha = 1;
 
-    // --- señales viajando entre esferas (con estela suave) ---
     signals.forEach(s => {
       s.t += s.speed * dt * motionMultiplier;
       if(s.t >= 1){
@@ -356,17 +355,15 @@
       const y = ay + dy * s.t;
       const color = lerpColor(s.edge.a.color, s.edge.b.color, s.t);
 
-      // desvanecido suave al entrar y salir del recorrido (sin "pop")
       const fadeIn = smooth01(s.t / 0.15);
       const fadeOut = smooth01((1 - s.t) / 0.15);
       const fade = Math.min(fadeIn, fadeOut);
 
-      // estela: varios puntos detrás de la cabeza, cada vez más tenues
       const tailDots = 4;
       const tailSpacing = 5.5;
+
       for(let i = tailDots; i >= 0; i--){
         const dist = i * tailSpacing;
-        // no dejar que la estela "se salga" del segmento
         const dAlong = Math.min(s.t * segLen, dist);
         const px = x - ux * dAlong;
         const py = y - uy * dAlong;
@@ -387,10 +384,10 @@
         ctx.fill();
       }
     });
+
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
 
-    // --- esferas (nodos) ---
     nodes.forEach(n => {
       n.activation *= 0.93;
       const glow = 6 + n.activation * 16 + (speakingBoost ? 4 : 0);
@@ -403,21 +400,14 @@
       ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
       ctx.fill();
     });
-    ctx.shadowBlur = 0;
 
+    ctx.shadowBlur = 0;
     requestAnimationFrame(animate);
   }
 
-  // --- texto a voz ---
   let availableVoices = [];
   let selectedVoice = null;
 
-  // Loquendo es un motor de voz comercial (hoy de Nuance/Cerence) y no se
-  // puede incrustar en una página web gratis. Como alternativa, buscamos
-  // entre las voces instaladas alguna llamada así, y si no aparece,
-  // priorizamos una voz MASCULINA en español (la voz clásica de Loquendo
-  // era de varón) en vez de la femenina que el navegador trae por defecto,
-  // y bajamos el tono para acercarnos a ese timbre grave y robótico.
   const MALE_HINTS = ['jorge', 'pablo', 'diego', 'carlos', 'enrique', 'miguel', 'raul', 'raúl', 'andres', 'andrés', 'alvaro', 'álvaro', 'tomas', 'tomás', 'male', 'hombre'];
   const FEMALE_HINTS = ['helena', 'laura', 'monica', 'mónica', 'sabina', 'paulina', 'lucia', 'lucía', 'elvira', 'maria', 'maría', 'esperanza', 'penelope', 'penélope', 'conchita', 'catalina', 'victoria', 'isabela', 'isabella', 'camila', 'valentina', 'sofia', 'sofía', 'zira', 'female', 'mujer'];
 
@@ -487,8 +477,6 @@
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = selectedVoice ? selectedVoice.lang : 'es-ES';
     if(selectedVoice) utterance.voice = selectedVoice;
-    // tono y velocidad ajustados para un timbre más grave, plano y
-    // mecánico, al estilo de las clásicas voces robóticas en español
     utterance.rate = 1.05;
     utterance.pitch = 0.8;
 
