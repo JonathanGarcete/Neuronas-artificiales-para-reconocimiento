@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Red Neuronal</title>
+<style>
+  :root{
+    --cyan: #2de2ff;
+    --blue: #3f6bff;
+    --blue-deep: #28419e;
+    --green: #3dffa0;
+    --red: #ff3b5c;
+    --panel-bg: rgba(8, 12, 24, 0.55);
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 42%, #060912 0%, #00000a 70%, #000000 100%);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+
+  canvas{
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .brand{
+    position: fixed;
+    top: 22px;
+    left: 26px;
+    color: rgba(180, 220, 255, 0.55);
+    font-size: 12px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .ui-panel{
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, 88vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ui-row{
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(61, 226, 255, 0.25);
+    border-radius: 999px;
+    padding: 8px 8px 8px 20px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 24px rgba(45, 226, 255, 0.08), inset 0 0 18px rgba(0,0,0,0.35);
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+
+  .ui-row.speaking{
+    border-color: rgba(61, 226, 255, 0.6);
+    box-shadow: 0 0 32px rgba(45, 226, 255, 0.25), inset 0 0 18px rgba(0,0,0,0.35);
+  }
+
+  #textInput{
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #eaf6ff;
+    font-size: 15px;
+    letter-spacing: 0.01em;
+    padding: 8px 4px;
+  }
+
+  #textInput::placeholder{
+    color: rgba(180, 210, 240, 0.4);
+  }
+
+  #playBtn{
+    flex-shrink: 0;
+    border: none;
+    cursor: pointer;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--blue), var(--blue-deep));
+    color: #eaf9ff;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 14px rgba(45, 226, 255, 0.45);
+    transition: transform 0.15s ease, box-shadow 0.25s ease, background 0.25s ease;
+  }
+
+  #playBtn:hover{
+    transform: scale(1.07);
+    box-shadow: 0 0 22px rgba(45, 226, 255, 0.7);
+  }
+
+  #playBtn.speaking{
+    background: linear-gradient(145deg, var(--cyan), var(--blue));
+  }
+
+  #textInput:focus-visible,
+  #playBtn:focus-visible{
+    outline: 2px solid rgba(45, 226, 255, 0.7);
+    outline-offset: 2px;
+  }
+
+  .hint{
+    color: rgba(170, 200, 230, 0.4);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    user-select: none;
+  }
+
+  .voice-row{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: rgba(190, 215, 240, 0.55);
+    letter-spacing: 0.02em;
+  }
+
+  #voiceSelect{
+    background: rgba(10, 14, 26, 0.65);
+    color: #d7ecff;
+    border: 1px solid rgba(61, 226, 255, 0.25);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    max-width: 240px;
+  }
+
+  #voiceSelect:focus-visible{
+    outline: 2px solid rgba(45, 226, 255, 0.6);
+    outline-offset: 1px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<div class="brand">Red Neuronal</div>
+
+<div class="ui-panel">
+  <div class="ui-row" id="uiRow">
+    <input type="text" id="textInput" placeholder="Escribe algo para la red..." autocomplete="off" />
+    <button id="playBtn" aria-label="Reproducir como audio" title="Reproducir como audio">▶</button>
+  </div>
+  <div class="voice-row">
+    <span>Voz</span>
+    <select id="voiceSelect" aria-label="Elegir voz"></select>
+  </div>
+  <div class="hint">Presiona Enter o el botón para escucharlo</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const textInput = document.getElementById('textInput');
+  const playBtn = document.getElementById('playBtn');
+  const uiRow = document.getElementById('uiRow');
+  const voiceSelect = document.getElementById('voiceSelect');
+
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = 0, H = 0;
+  let nodes = [];
+  let edges = [];
+  let signals = [];
+  let speakingBoost = false;
+  let lastTime = null;
+
+  const PALETTE = {
+    red: '#ff3b5c',
+    cyan: '#2de2ff',
+    blue: '#3f6bff',
+    blueDeep: '#28419e',
+    green: '#3dffa0'
+  };
+
+  const COLUMN_COUNTS = [7, 9, 11, 12, 11, 9, 7];
+
+  function pickColor(colIndex){
+    if(colIndex < 2) return PALETTE.red;
+    if(colIndex < 5) return PALETTE.blue;
+    return PALETTE.green;
+  }
+
+  function hexToRgb(hex){
+    const h = hex.replace('#', '');
+    return {
+      r: parseInt(h.substring(0,2), 16),
+      g: parseInt(h.substring(2,4), 16),
+      b: parseInt(h.substring(4,6), 16)
+    };
+  }
+
+  function hexToRgba(hex, alpha){
+    const c = hexToRgb(hex);
+    return `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+  }
+
+  function lerpColor(hexA, hexB, t){
+    const a = hexToRgb(hexA), b = hexToRgb(hexB);
+    const r = Math.round(a.r + (b.r - a.r) * t);
+    const g = Math.round(a.g + (b.g - a.g) * t);
+    const bl = Math.round(a.b + (b.b - a.b) * t);
+    return `rgb(${r}, ${g}, ${bl})`;
+  }
+
+  function resizeCanvas(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function buildNetwork(){
+    nodes = [];
+    edges = [];
+
+    const numCols = COLUMN_COUNTS.length;
+    const marginX = W * 0.12;
+    const usableWidth = W - marginX * 2;
+    const maxCount = Math.max(...COLUMN_COUNTS);
+    const spacingY = Math.max(16, Math.min(46, (H * 0.74) / (maxCount - 1)));
+    const centerY = H / 2;
+
+    const columns = [];
+
+    for(let c = 0; c < numCols; c++){
+      const count = COLUMN_COUNTS[c];
+      const x = numCols === 1 ? W / 2 : marginX + usableWidth * (c / (numCols - 1));
+      const totalHeight = (count - 1) * spacingY;
+      const startY = centerY - totalHeight / 2;
+      const colNodes = [];
+
+      for(let i = 0; i < count; i++){
+        const node = {
+          x: x,
+          y: startY + i * spacingY,
+          color: pickColor(c),
+          activation: 0
+        };
+        nodes.push(node);
+        colNodes.push(node);
+      }
+      columns.push(colNodes);
+    }
+
+    for(let c = 0; c < numCols - 1; c++){
+      const colA = columns[c];
+      const colB = columns[c + 1];
+      colA.forEach(a => {
+        colB.forEach(b => {
+          const alpha = 0.12 + Math.random() * 0.22;
+          edges.push({
+            a,
+            b,
+            gradient: hexToRgba(a.color, alpha)
+          });
+        });
+      });
+    }
+
+    buildSignals();
+  }
+
+  function buildSignals(){
+    signals = [];
+    const total = Math.min(110, Math.max(40, Math.floor(edges.length * 0.18)));
+    for(let i = 0; i < total; i++){
+      signals.push({
+        edge: edges[Math.floor(Math.random() * edges.length)],
+        t: Math.random(),
+        speed: 0.22 + Math.random() * 0.3
+      });
+    }
+  }
+
+  function smooth01(t){
+    const c = Math.max(0, Math.min(1, t));
+    return c * c * (3 - 2 * c);
+  }
+
+  function animate(timestamp){
+    if(lastTime === null) lastTime = timestamp;
+    let dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    dt = Math.min(dt, 0.033);
+
+    const motionMultiplier = reducedMotion ? 0.12 : (speakingBoost ? 1.7 : 1);
+
+    ctx.clearRect(0, 0, W, H);
+
+    const breathing = reducedMotion ? 0.75 : (speakingBoost ? 0.95 : 0.7) + 0.18 * Math.sin(timestamp / 1400);
+    ctx.globalAlpha = Math.max(0.35, Math.min(1, breathing));
+    ctx.lineWidth = 0.7;
+
+    edges.forEach(e => {
+      ctx.strokeStyle = e.gradient;
+      ctx.beginPath();
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.lineTo(e.b.x, e.b.y);
+      ctx.stroke();
+    });
+
+    ctx.globalAlpha = 1;
+
+    signals.forEach(s => {
+      s.t += s.speed * dt * motionMultiplier;
+      if(s.t >= 1){
+        s.t = 0;
+        s.edge = edges[Math.floor(Math.random() * edges.length)];
+        s.edge.b.activation = Math.min(1, s.edge.b.activation + 0.55);
+        s.speed = 0.22 + Math.random() * 0.3;
+      }
+
+      const ax = s.edge.a.x, ay = s.edge.a.y;
+      const bx = s.edge.b.x, by = s.edge.b.y;
+      const dx = bx - ax, dy = by - ay;
+      const segLen = Math.hypot(dx, dy) || 1;
+      const ux = dx / segLen, uy = dy / segLen;
+
+      const x = ax + dx * s.t;
+      const y = ay + dy * s.t;
+      const color = lerpColor(s.edge.a.color, s.edge.b.color, s.t);
+
+      const fadeIn = smooth01(s.t / 0.15);
+      const fadeOut = smooth01((1 - s.t) / 0.15);
+      const fade = Math.min(fadeIn, fadeOut);
+
+      const tailDots = 4;
+      const tailSpacing = 5.5;
+
+      for(let i = tailDots; i >= 0; i--){
+        const dist = i * tailSpacing;
+        const dAlong = Math.min(s.t * segLen, dist);
+        const px = x - ux * dAlong;
+        const py = y - uy * dAlong;
+        const isHead = i === 0;
+        const a = fade * (isHead ? 1 : 0.45 * (1 - i / (tailDots + 1)));
+
+        ctx.globalAlpha = a;
+        ctx.beginPath();
+        ctx.fillStyle = color;
+        if(isHead){
+          ctx.shadowColor = color;
+          ctx.shadowBlur = speakingBoost ? 16 : 9;
+        } else {
+          ctx.shadowBlur = 0;
+        }
+        const r = isHead ? 2 : Math.max(0.5, 1.8 - i * 0.3);
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    nodes.forEach(n => {
+      n.activation *= 0.93;
+      const glow = 6 + n.activation * 16 + (speakingBoost ? 4 : 0);
+      const r = 3.6 + n.activation * 2;
+
+      ctx.beginPath();
+      ctx.fillStyle = n.color;
+      ctx.shadowColor = n.color;
+      ctx.shadowBlur = glow;
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.shadowBlur = 0;
+    requestAnimationFrame(animate);
+  }
+
+  let availableVoices = [];
+  let selectedVoice = null;
+
+  const MALE_HINTS = ['jorge', 'pablo', 'diego', 'carlos', 'enrique', 'miguel', 'raul', 'raúl', 'andres', 'andrés', 'alvaro', 'álvaro', 'tomas', 'tomás', 'male', 'hombre'];
+  const FEMALE_HINTS = ['helena', 'laura', 'monica', 'mónica', 'sabina', 'paulina', 'lucia', 'lucía', 'elvira', 'maria', 'maría', 'esperanza', 'penelope', 'penélope', 'conchita', 'catalina', 'victoria', 'isabela', 'isabella', 'camila', 'valentina', 'sofia', 'sofía', 'zira', 'female', 'mujer'];
+
+  function voiceScore(v){
+    const name = v.name.toLowerCase();
+    let score = 0;
+    if(name.includes('loquendo')) score += 20;
+    if(MALE_HINTS.some(k => name.includes(k))) score += 5;
+    if(FEMALE_HINTS.some(k => name.includes(k))) score -= 5;
+    if(v.lang.toLowerCase().startsWith('es')) score += 2;
+    return score;
+  }
+
+  function loadVoices(){
+    availableVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    if(!availableVoices.length) return;
+    populateVoiceSelect();
+  }
+
+  function populateVoiceSelect(){
+    const sorted = [...availableVoices].sort((a, b) => voiceScore(b) - voiceScore(a));
+
+    voiceSelect.innerHTML = '';
+    sorted.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = `${v.name} (${v.lang})`;
+      voiceSelect.appendChild(opt);
+    });
+
+    const best = sorted[0];
+    if(best){
+      voiceSelect.value = best.name;
+      selectedVoice = best;
+    }
+  }
+
+  voiceSelect.addEventListener('change', () => {
+    selectedVoice = availableVoices.find(v => v.name === voiceSelect.value) || null;
+  });
+
+  if('speechSynthesis' in window){
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+
+  function setSpeakingState(active){
+    speakingBoost = active;
+    uiRow.classList.toggle('speaking', active);
+    playBtn.classList.toggle('speaking', active);
+    playBtn.textContent = active ? '■' : '▶';
+    playBtn.title = active ? 'Detener' : 'Reproducir como audio';
+    playBtn.setAttribute('aria-label', playBtn.title);
+  }
+
+  function speakText(){
+    const text = textInput.value.trim();
+    if(!text) return;
+
+    if(!('speechSynthesis' in window)){
+      alert('Tu navegador no soporta la síntesis de voz.');
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = selectedVoice ? selectedVoice.lang : 'es-ES';
+    if(selectedVoice) utterance.voice = selectedVoice;
+    utterance.rate = 1.05;
+    utterance.pitch = 0.8;
+
+    utterance.onstart = () => setSpeakingState(true);
+    utterance.onend = () => setSpeakingState(false);
+    utterance.onerror = () => setSpeakingState(false);
+    utterance.onboundary = () => {
+      const idx = Math.floor(Math.random() * nodes.length);
+      if(nodes[idx]) nodes[idx].activation = 1;
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function handlePlayClick(){
+    if(window.speechSynthesis.speaking || window.speechSynthesis.pending){
+      window.speechSynthesis.cancel();
+      setSpeakingState(false);
+      return;
+    }
+    speakText();
+  }
+
+  playBtn.addEventListener('click', handlePlayClick);
+  textInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      handlePlayClick();
+    }
+  });
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      resizeCanvas();
+      buildNetwork();
+    }, 150);
+  });
+
+  function init(){
+    resizeCanvas();
+    buildNetwork();
+    requestAnimationFrame(animate);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
